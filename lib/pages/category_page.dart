@@ -235,7 +235,7 @@ class _CategoryCardState extends State<_CategoryCard> {
                 boxShadow: isFocused
                     ? [
                         BoxShadow(
-                          color: Colors.amber.withOpacity(0.6),
+                          color: Colors.amber.withValues(alpha: 0.6),
                           blurRadius: 12,
                           spreadRadius: 2,
                         )
@@ -259,7 +259,7 @@ class _CategoryCardState extends State<_CategoryCard> {
                       fontSize: 14,
                       shadows: [
                         Shadow(
-                          color: Colors.black.withOpacity(0.6),
+                          color: Colors.black.withValues(alpha: 0.6),
                           blurRadius: 4,
                           offset: const Offset(0, 1),
                         ),

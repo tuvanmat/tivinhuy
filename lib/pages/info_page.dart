@@ -420,9 +420,9 @@ class _InfoPageState extends State<InfoPage> {
                                     color: Colors.greenAccent
                                         .withValues(alpha: 0.4)),
                               ),
-                              child: Row(
+                              child: const Row(
                                 mainAxisSize: MainAxisSize.min,
-                                children: const [
+                                children: [
                                   Icon(Icons.check_circle,
                                       color: Colors.greenAccent, size: 22),
                                   SizedBox(width: 10),

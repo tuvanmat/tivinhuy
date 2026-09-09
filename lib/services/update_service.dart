@@ -34,7 +34,7 @@ class UpdateService {
       context: context,
       useRootNavigator: true,
       barrierDismissible: false,
-      barrierColor: Colors.black.withOpacity(0.85),
+      barrierColor: Colors.black.withValues(alpha: 0.85),
       pageBuilder: (BuildContext buildContext, Animation<double> animation,
           Animation<double> secondaryAnimation) {
         return PopScope(
@@ -145,7 +145,7 @@ class UpdateService {
   static Future<void> _installApkNative(String filePath) async {
     try {
       @override
-      final MethodChannel platform = MethodChannel('com.phim.nhuy/installer');
+      const MethodChannel platform = MethodChannel('com.phim.nhuy/installer');
       await platform.invokeMethod('installApk', {'filePath': filePath});
     } catch (e) {
       debugPrint('Lỗi gọi cài đặt native: $e');

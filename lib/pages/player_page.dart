@@ -39,7 +39,7 @@ class _PlayerPageState extends State<PlayerPage> {
   final FocusNode _playerFocusNode = FocusNode();
   final ScrollController _episodesScrollController = ScrollController();
 
-  List<FocusNode> _episodeFocusNodes = [];
+  final List<FocusNode> _episodeFocusNodes = [];
 
   @override
   void initState() {
