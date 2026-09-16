@@ -52,25 +52,24 @@ class _MoviesListState extends State<MoviesList> {
     final buttonFocusProvider =
         Provider.of<ButtonFocusProvider>(context, listen: false);
 
+    if (movies.isNotEmpty) {
+      focusedMovieProvider.focusedMovie = movies.first;
+    }
+
     final lastLabel = buttonFocusProvider.buttonFocusedLabel;
-    if (lastLabel == "${topMoviesItem}0" || lastLabel.isEmpty) {
+    if (lastLabel == "${topMoviesItem}0" ||
+        lastLabel.isEmpty ||
+        !lastLabel.startsWith(topMoviesItem)) {
       buttonFocusProvider.buttonFocusedLabel = "${topMoviesItem}0";
       buttonFocusProvider.lastButtonFocusedLabel = "${topMoviesItem}0";
-      if (movies.isNotEmpty) {
-        focusedMovieProvider.focusedMovie = movies.first;
-      }
     } else if (lastLabel.startsWith(topMoviesItem)) {
       try {
         final indexStr = lastLabel.replaceFirst(topMoviesItem, '');
         final index = int.parse(indexStr);
         if (index < movies.length) {
           focusedMovieProvider.focusedMovie = movies[index];
-        } else {
-          focusedMovieProvider.focusedMovie = movies.first;
         }
-      } catch (_) {
-        focusedMovieProvider.focusedMovie = movies.first;
-      }
+      } catch (_) {}
     }
 
     if (_scrollController.hasClients) {
@@ -110,9 +109,23 @@ class _MoviesListState extends State<MoviesList> {
   Widget build(BuildContext context) {
     final moviesProvider = Provider.of<MoviesProvider>(context);
 
-    if (_lastFetchedType != moviesProvider.currentType) {
+    if (_lastFetchedType != moviesProvider.currentType ||
+        (moviesProvider.topMovies.isNotEmpty &&
+            Provider.of<FocusedMovieProvider>(context, listen: false)
+                    .focusedMovie
+                    .title !=
+                moviesProvider.topMovies.first.title &&
+            Provider.of<ButtonFocusProvider>(context, listen: false)
+                    .buttonFocusedLabel ==
+                "${topMoviesItem}0")) {
       _lastFetchedType = moviesProvider.currentType;
+
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        final buttonFocusProvider =
+            Provider.of<ButtonFocusProvider>(context, listen: false);
+        buttonFocusProvider.buttonFocusedLabel = "${topMoviesItem}0";
+        buttonFocusProvider.lastButtonFocusedLabel = "${topMoviesItem}0";
+
         if (moviesProvider.topMovies.isNotEmpty) {
           _initializeFocusAndScroll(moviesProvider.topMovies);
         }
@@ -126,9 +139,22 @@ class _MoviesListState extends State<MoviesList> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-          child: FilterButtonWidget(),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: MediaQuery.of(context).size.width > 700
+                      ? MediaQuery.of(context).size.width - 100
+                      : 450,
+                  child: const FocusedMovieHeaderTitle(),
+                ),
+              ],
+            ),
+          ),
         ),
         Expanded(
           child: moviesProvider.loadingTopMovies &&
@@ -148,7 +174,7 @@ class _MoviesListState extends State<MoviesList> {
                           gridDelegate:
                               const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 5,
-                            childAspectRatio: 0.62,
+                            childAspectRatio: 0.68,
                             crossAxisSpacing: 24.0,
                             mainAxisSpacing: 24.0,
                           ),
@@ -182,608 +208,56 @@ class _MoviesListState extends State<MoviesList> {
   }
 }
 
-class FilterButtonWidget extends StatefulWidget {
-  const FilterButtonWidget({super.key});
-
-  @override
-  State<FilterButtonWidget> createState() => _FilterButtonWidgetState();
-}
-
-class _FilterButtonWidgetState extends State<FilterButtonWidget> {
-  final FocusNode _filterFocusNode = FocusNode();
-
-  @override
-  void dispose() {
-    _filterFocusNode.dispose();
-    super.dispose();
-  }
-
-  void _showFilterDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return const FilterDialogContent();
-      },
-    );
-  }
+class FocusedMovieHeaderTitle extends StatelessWidget {
+  const FocusedMovieHeaderTitle({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Focus(
-      focusNode: _filterFocusNode,
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent || event is KeyRepeatEvent) {
-          if (event.logicalKey == LogicalKeyboardKey.select ||
-              event.logicalKey == LogicalKeyboardKey.enter ||
-              event.logicalKey == LogicalKeyboardKey.space ||
-              event.logicalKey == LogicalKeyboardKey.gameButtonA) {
-            _showFilterDialog(context);
-            return KeyEventResult.handled;
-          }
+    return Consumer<FocusedMovieProvider>(
+      builder: (context, focusedProvider, child) {
+        final movie = focusedProvider.focusedMovie;
+        if (movie.title.isEmpty) {
+          return const SizedBox.shrink();
         }
-        return KeyEventResult.ignored;
-      },
-      child: AnimatedBuilder(
-        animation: _filterFocusNode,
-        builder: (context, child) {
-          final isFocused = _filterFocusNode.hasFocus;
-          return InkWell(
-            onTap: () => _showFilterDialog(context),
-            borderRadius: BorderRadius.circular(12),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 140,
-              height: 48,
-              decoration: BoxDecoration(
-                color: isFocused ? Colors.amber : const Color(0xFF1E3A8A),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isFocused ? Colors.white : Colors.transparent,
-                  width: 2,
+
+        final bool isLoadMore = movie.title == 'Nhấn vào đây để tải thêm phim';
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          alignment: Alignment.centerLeft,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                movie.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.tune,
-                      color: isFocused ? Colors.black : Colors.white, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    "Bộ Lọc",
-                    style: TextStyle(
-                      color: isFocused ? Colors.black : Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class FilterDialogContent extends StatefulWidget {
-  const FilterDialogContent({super.key});
-
-  @override
-  State<FilterDialogContent> createState() => _FilterDialogContentState();
-}
-
-class _FilterDialogContentState extends State<FilterDialogContent> {
-  final FocusNode _genreFocusNode = FocusNode();
-  final FocusNode _countryFocusNode = FocusNode();
-  final FocusNode _yearFocusNode = FocusNode();
-  final FocusNode _clearFocusNode = FocusNode();
-  final FocusNode _applyFocusNode = FocusNode();
-
-  final List<String> genres = [
-    'Tất Cả',
-    'Hành Động',
-    'Phiêu Lưu',
-    'Hoạt Hình',
-    'Phim Hài',
-    'Hình Sự',
-    'Tài Liệu',
-    'Chính Kịch',
-    'Gia Đình',
-    'Giả Tưởng',
-    'Lịch Sử',
-    'Kinh Dị',
-    'Phim Nhạc',
-    'Bí Ẩn',
-    'Lãng Mạn',
-    'Khoa Học Viễn Tưởng',
-    'Gây Cấn',
-    'Chiến Tranh',
-    'Miền Tây',
-    'Cổ Trang',
-    'Tâm Lý',
-    'Phim 18+',
-    'Tình Cảm'
-  ];
-
-  final List<String> countries = [
-    'Tất Cả',
-    'Âu Mỹ',
-    'Anh',
-    'Trung Quốc',
-    'Indonesia',
-    'Việt Nam',
-    'Argentina',
-    'Áo',
-    'Úc',
-    'Bangladesh',
-    'Brazil',
-    'Bahamas',
-    'Belarus',
-    'Canada',
-    'Thụy Sĩ',
-    'Bờ Biển Ngà',
-    'Chile',
-    'Colombia',
-    'Costa Rica',
-    'Đức',
-    'Đan Mạch',
-    'Tây Ban Nha',
-    'Pháp',
-    'Greenland',
-    'Hồng Kông',
-    'Hàn Quốc',
-    'Nhật Bản',
-    'Thái Lan',
-    'Đài Loan',
-    'Nga',
-    'Hà Lan',
-    'Quốc gia khác',
-    'Philippines',
-    'Ấn Độ'
-  ];
-
-  final List<String> years = [
-    'Tất Cả',
-    '2026',
-    '2025',
-    '2024',
-    '2023',
-    '2022',
-    '2021',
-    '2020',
-    '2019',
-    '2018',
-    '2017',
-    '2016',
-    '2015'
-  ];
-
-  String _selectedGenre = 'Tất Cả';
-  String _selectedCountry = 'Tất Cả';
-  String _selectedYear = 'Tất Cả';
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Đưa focus vào dòng Thể Loại đầu tiên khi mở popup
-      _genreFocusNode.requestFocus();
-    });
-  }
-
-  @override
-  void dispose() {
-    _genreFocusNode.dispose();
-    _countryFocusNode.dispose();
-    _yearFocusNode.dispose();
-    _clearFocusNode.dispose();
-    _applyFocusNode.dispose();
-    super.dispose();
-  }
-
-  void _showSelectionPicker(BuildContext context, String title,
-      List<String> items, String currentVal, Function(String) onSelected) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return Dialog(
-          backgroundColor: const Color(0xFF1E1B4B),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: Container(
-            width: 400,
-            height: 480,
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Chọn $title",
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold),
-                ),
-                const Divider(color: Colors.white24, height: 20),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: items.length,
-                    itemBuilder: (context, index) {
-                      final item = items[index];
-                      final isSelected = item == currentVal;
-                      return _PickerItem(
-                        title: item,
-                        isSelected: isSelected,
-                        autofocus: index == 0,
-                        onTap: () {
-                          onSelected(item);
-                          Navigator.pop(context);
-                        },
-                      );
-                    },
+              const SizedBox(height: 4),
+              if (isLoadMore)
+                const Text(
+                  "Nhấn nút OK trên điều khiển của bạn",
+                  style: TextStyle(
+                    color: Colors.amberAccent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
         );
       },
     );
   }
-
-  @override
-  Widget build(BuildContext context) {
-    final moviesProvider = Provider.of<MoviesProvider>(context, listen: false);
-
-    return Dialog(
-      backgroundColor: const Color(0xFF2D2650),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Container(
-        width: 520,
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.settings, color: Colors.white, size: 24),
-                SizedBox(width: 12),
-                Text(
-                  "Bộ Lọc Nâng Cao",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const Divider(color: Colors.white24, height: 24),
-
-            // 1. Thể Loại
-            _buildOptionRow("Thể Loại", _selectedGenre, _genreFocusNode, () {
-              _showSelectionPicker(context, "Thể Loại", genres, _selectedGenre,
-                  (val) {
-                setState(() => _selectedGenre = val);
-              });
-            }),
-
-            const Divider(color: Colors.white24),
-
-            // 2. Quốc Gia
-            _buildOptionRow("Quốc Gia", _selectedCountry, _countryFocusNode,
-                () {
-              _showSelectionPicker(
-                  context, "Quốc Gia", countries, _selectedCountry, (val) {
-                setState(() => _selectedCountry = val);
-              });
-            }),
-
-            const Divider(color: Colors.white24),
-
-            // 3. Năm Sản Xuất
-            _buildOptionRow("Năm Sản Xuất", _selectedYear, _yearFocusNode, () {
-              _showSelectionPicker(
-                  context, "Năm Sản Xuất", years, _selectedYear, (val) {
-                setState(() => _selectedYear = val);
-              });
-            }),
-
-            const Divider(color: Colors.white24, height: 20),
-
-            // 4. Xóa Tất Cả Bộ Lọc (Đưa lên trên nút Áp dụng)
-            Center(
-              child: Focus(
-                focusNode: _clearFocusNode,
-                onKeyEvent: (node, event) {
-                  if (event is KeyDownEvent || event is KeyRepeatEvent) {
-                    if (event.logicalKey == LogicalKeyboardKey.select ||
-                        event.logicalKey == LogicalKeyboardKey.enter ||
-                        event.logicalKey == LogicalKeyboardKey.space ||
-                        event.logicalKey == LogicalKeyboardKey.gameButtonA) {
-                      setState(() {
-                        _selectedGenre = 'Tất Cả';
-                        _selectedCountry = 'Tất Cả';
-                        _selectedYear = 'Tất Cả';
-                      });
-                      moviesProvider.clearFilter();
-                      Navigator.pop(context);
-                      return KeyEventResult.handled;
-                    }
-                  }
-                  return KeyEventResult.ignored;
-                },
-                child: AnimatedBuilder(
-                  animation: _clearFocusNode,
-                  builder: (context, child) {
-                    final focused = _clearFocusNode.hasFocus;
-                    return InkWell(
-                      onTap: () {
-                        setState(() {
-                          _selectedGenre = 'Tất Cả';
-                          _selectedCountry = 'Tất Cả';
-                          _selectedYear = 'Tất Cả';
-                        });
-                        moviesProvider.clearFilter();
-                        Navigator.pop(context);
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 6.0, horizontal: 12.0),
-                        decoration: BoxDecoration(
-                          color: focused ? Colors.white24 : Colors.transparent,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          "— Xóa Tất Cả Bộ Lọc —",
-                          style: TextStyle(
-                            color: focused ? Colors.amber : Colors.white70,
-                            fontSize: 14,
-                            fontWeight:
-                                focused ? FontWeight.bold : FontWeight.normal,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // 5. Nút Áp Dụng Bộ Lọc (Đưa xuống dưới cùng)
-            _buildActionOption("Áp Dụng Bộ Lọc", _applyFocusNode, () {
-              moviesProvider.applyFilter(
-                genre: _selectedGenre,
-                country: _selectedCountry,
-                year: _selectedYear,
-              );
-              Navigator.pop(context);
-            }, isHighlighted: true),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionOption(
-      String title, FocusNode focusNode, VoidCallback onTap,
-      {bool isHighlighted = false}) {
-    return Focus(
-      focusNode: focusNode,
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent || event is KeyRepeatEvent) {
-          if (event.logicalKey == LogicalKeyboardKey.select ||
-              event.logicalKey == LogicalKeyboardKey.enter ||
-              event.logicalKey == LogicalKeyboardKey.space ||
-              event.logicalKey == LogicalKeyboardKey.gameButtonA) {
-            onTap();
-            return KeyEventResult.handled;
-          }
-        }
-        return KeyEventResult.ignored;
-      },
-      child: AnimatedBuilder(
-        animation: focusNode,
-        builder: (context, child) {
-          final focused = focusNode.hasFocus;
-          return InkWell(
-            onTap: onTap,
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12.0),
-              decoration: BoxDecoration(
-                color: focused
-                    ? Colors.amber
-                    : (isHighlighted
-                        ? const Color(0xFF1E3A8A)
-                        : Colors.transparent),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: focused ? Colors.white : Colors.transparent,
-                  width: 2,
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.check_circle_outline,
-                      color: focused ? Colors.black : Colors.white, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    title,
-                    style: TextStyle(
-                      color: focused ? Colors.black : Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildOptionRow(String label, String currentValue, FocusNode focusNode,
-      VoidCallback onTap) {
-    return Focus(
-      focusNode: focusNode,
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent || event is KeyRepeatEvent) {
-          if (event.logicalKey == LogicalKeyboardKey.select ||
-              event.logicalKey == LogicalKeyboardKey.enter ||
-              event.logicalKey == LogicalKeyboardKey.space ||
-              event.logicalKey == LogicalKeyboardKey.gameButtonA) {
-            onTap();
-            return KeyEventResult.handled;
-          }
-        }
-        return KeyEventResult.ignored;
-      },
-      child: AnimatedBuilder(
-        animation: focusNode,
-        builder: (context, child) {
-          final focused = focusNode.hasFocus;
-          return InkWell(
-            onTap: onTap,
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
-              decoration: BoxDecoration(
-                color: focused
-                    ? Colors.amber.withValues(alpha: 0.3)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: focused ? Colors.amber : Colors.transparent,
-                  width: 1.5,
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: focused ? Colors.amber : Colors.white,
-                      fontSize: 15,
-                      fontWeight: focused ? FontWeight.bold : FontWeight.normal,
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      Text(
-                        currentValue,
-                        style: TextStyle(
-                          color: focused ? Colors.amber : Colors.greenAccent,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.arrow_forward_ios,
-                          color: Colors.white54, size: 14),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
 }
 
-class _PickerItem extends StatefulWidget {
-  final String title;
-  final bool isSelected;
-  final bool autofocus;
-  final VoidCallback onTap;
-
-  const _PickerItem({
-    required this.title,
-    required this.isSelected,
-    required this.autofocus,
-    required this.onTap,
-  });
-
-  @override
-  State<_PickerItem> createState() => _PickerItemState();
-}
-
-class _PickerItemState extends State<_PickerItem> {
-  final FocusNode _focusNode = FocusNode();
-
-  @override
-  void dispose() {
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Focus(
-      focusNode: _focusNode,
-      autofocus: widget.autofocus,
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent || event is KeyRepeatEvent) {
-          if (event.logicalKey == LogicalKeyboardKey.select ||
-              event.logicalKey == LogicalKeyboardKey.enter ||
-              event.logicalKey == LogicalKeyboardKey.space ||
-              event.logicalKey == LogicalKeyboardKey.gameButtonA) {
-            widget.onTap();
-            return KeyEventResult.handled;
-          }
-        }
-        return KeyEventResult.ignored;
-      },
-      child: AnimatedBuilder(
-        animation: _focusNode,
-        builder: (context, child) {
-          final focused = _focusNode.hasFocus;
-          return InkWell(
-            onTap: widget.onTap,
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 4.0),
-              padding:
-                  const EdgeInsets.symmetric(vertical: 10.0, horizontal: 12.0),
-              decoration: BoxDecoration(
-                color: focused ? Colors.amber : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    widget.title,
-                    style: TextStyle(
-                      color: focused ? Colors.black : Colors.white,
-                      fontSize: 15,
-                      fontWeight: focused ? FontWeight.bold : FontWeight.normal,
-                    ),
-                  ),
-                  if (widget.isSelected)
-                    Icon(Icons.check,
-                        color: focused ? Colors.black : Colors.greenAccent,
-                        size: 18),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-// Widget quản lý nút Tải thêm phim ở cuối lưới
 class _LoadMoreItemWidget extends StatefulWidget {
   final bool isLoadingMore;
   final VoidCallback onLoadMore;
@@ -832,10 +306,28 @@ class _LoadMoreItemWidgetState extends State<_LoadMoreItemWidget> {
           focusNode: _loadMoreFocusNode,
           onFocusChange: (hasFocus) {
             if (hasFocus) {
-              final provider =
+              final buttonProvider =
                   Provider.of<ButtonFocusProvider>(context, listen: false);
-              provider.buttonFocusedLabel = label;
-              provider.lastButtonFocusedLabel = label;
+              final focusedMovieProvider =
+                  Provider.of<FocusedMovieProvider>(context, listen: false);
+
+              buttonProvider.buttonFocusedLabel = label;
+              buttonProvider.lastButtonFocusedLabel = label;
+
+              focusedMovieProvider.focusedMovie = MovieModel(
+                slug: '',
+                title: 'Nhấn vào đây để tải thêm phim',
+                category: '',
+                country: '',
+                verticalPhoto: '',
+                horizontalPhoto: '',
+                quality: '',
+                time: '',
+                year: '',
+                language: '',
+                description: '',
+                url: '',
+              );
             }
           },
           onKeyEvent: (node, event) {
@@ -845,26 +337,24 @@ class _LoadMoreItemWidgetState extends State<_LoadMoreItemWidget> {
               final moviesProvider =
                   Provider.of<MoviesProvider>(context, listen: false);
 
-              if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+              if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+                  event.logicalKey == LogicalKeyboardKey.arrowUp) {
                 if (moviesProvider.topMovies.isNotEmpty) {
                   final targetIndex = moviesProvider.topMovies.length - 1;
                   buttonFocusProvider.buttonFocusedLabel =
                       "$topMoviesItem$targetIndex";
                   buttonFocusProvider.lastButtonFocusedLabel =
                       "$topMoviesItem$targetIndex";
+
+                  Provider.of<FocusedMovieProvider>(context, listen: false)
+                      .focusedMovie = moviesProvider.topMovies[targetIndex];
                 }
                 return KeyEventResult.handled;
               }
 
-              if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-                int totalMovies = moviesProvider.topMovies.length;
-                int targetIndex = totalMovies - 1 - ((totalMovies - 1) % 5);
-                if (targetIndex >= 0 && targetIndex < totalMovies) {
-                  buttonFocusProvider.buttonFocusedLabel =
-                      "$topMoviesItem$targetIndex";
-                  buttonFocusProvider.lastButtonFocusedLabel =
-                      "$topMoviesItem$targetIndex";
-                }
+              // Chặn không cho nhảy phải/xuống khỏi nút tải thêm
+              if (event.logicalKey == LogicalKeyboardKey.arrowRight ||
+                  event.logicalKey == LogicalKeyboardKey.arrowDown) {
                 return KeyEventResult.handled;
               }
 
@@ -900,7 +390,7 @@ class _LoadMoreItemWidgetState extends State<_LoadMoreItemWidget> {
                             "Như Ý ơi!",
                             style: TextStyle(
                               color: focused ? Colors.amber : Colors.white,
-                              fontSize: 11,
+                              fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
                             textAlign: TextAlign.center,
@@ -916,7 +406,7 @@ class _LoadMoreItemWidgetState extends State<_LoadMoreItemWidget> {
                             "Tải thêm phim!",
                             style: TextStyle(
                               color: focused ? Colors.amber : Colors.white,
-                              fontSize: 11,
+                              fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
                             textAlign: TextAlign.center,
@@ -1010,9 +500,16 @@ class _MovieListItemState extends State<MovieListItem> {
       builder: (context, buttonFocusedLabel, _) {
         final focused = buttonFocusedLabel == widget.label;
 
-        if (focused && !_itemFocusNode.hasFocus) {
+        if (focused) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (_itemFocusNode.canRequestFocus) {
+            final focusedMovieProvider =
+                Provider.of<FocusedMovieProvider>(context, listen: false);
+            if (focusedMovieProvider.focusedMovie.slug !=
+                widget.movieModel.slug) {
+              focusedMovieProvider.focusedMovie = widget.movieModel;
+            }
+
+            if (!_itemFocusNode.hasFocus) {
               _itemFocusNode.requestFocus();
               Scrollable.ensureVisible(
                 context,
@@ -1080,7 +577,13 @@ class _MovieListItemState extends State<MovieListItem> {
               if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
                 buttonFocusProvider.buttonFocusedLabel = bottomLabel;
                 buttonFocusProvider.lastButtonFocusedLabel = bottomLabel;
-                if (!isLastRow && bottomIndex < widget.topMovies.length) {
+                if (isLastRow) {
+                  // Trỏ thẳng sang card tải thêm phim nếu đang ở hàng cuối
+                  buttonFocusProvider.buttonFocusedLabel =
+                      "home_load_more_card";
+                  buttonFocusProvider.lastButtonFocusedLabel =
+                      "home_load_more_card";
+                } else if (bottomIndex < widget.topMovies.length) {
                   focusedMovieProvider.focusedMovie =
                       widget.topMovies[bottomIndex];
                 }
@@ -1103,107 +606,108 @@ class _MovieListItemState extends State<MovieListItem> {
             },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 300),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: focused ? Colors.amber : Colors.white70,
-                          width: focused ? 3.5 : 1.5,
-                        ),
-                        boxShadow: focused
-                            ? [
-                                BoxShadow(
-                                  color: Colors.amber.withValues(alpha: 0.6),
-                                  blurRadius: 15,
-                                  spreadRadius: 3,
-                                )
-                              ]
-                            : [
-                                const BoxShadow(
-                                  color: Colors.black45,
-                                  blurRadius: 6,
-                                  offset: Offset(0, 3),
-                                )
-                              ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            FadeInImage(
-                              width: double.infinity,
-                              height: double.infinity,
-                              fit: BoxFit.cover,
-                              fadeInDuration: const Duration(milliseconds: 100),
-                              placeholder: const AssetImage(
-                                "assets/images/loading_image.gif",
-                              ),
-                              image: NetworkImage(
-                                widget.movieModel.verticalPhoto,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: focused ? Colors.amber : Colors.white70,
+                    width: focused ? 3.5 : 1.5,
+                  ),
+                  boxShadow: focused
+                      ? [
+                          BoxShadow(
+                            color: Colors.amber.withValues(alpha: 0.6),
+                            blurRadius: 15,
+                            spreadRadius: 3,
+                          )
+                        ]
+                      : [
+                          const BoxShadow(
+                            color: Colors.black45,
+                            blurRadius: 6,
+                            offset: Offset(0, 3),
+                          )
+                        ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Image.network(
+                        widget.movieModel.verticalPhoto,
+                        width: double.infinity,
+                        height: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            color: const Color(0xFF1E2430),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.movie_rounded,
+                                      color: Colors.white24, size: 36),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    widget.movieModel.title,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            if (widget.movieModel.quality.isNotEmpty)
-                              Positioned(
-                                top: 8,
-                                left: 8,
-                                child: _buildBadge(
-                                  widget.movieModel.quality.toUpperCase(),
-                                  Colors.redAccent,
-                                ),
-                              ),
-                            if (widget.movieModel.time.isNotEmpty)
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: _buildBadge(
-                                  widget.movieModel.time,
-                                  Colors.black87,
-                                ),
-                              ),
-                            if (widget.movieModel.year.isNotEmpty)
-                              Positioned(
-                                bottom: 8,
-                                left: 8,
-                                child: _buildBadge(
-                                  widget.movieModel.year,
-                                  Colors.black87,
-                                ),
-                              ),
-                            if (widget.movieModel.language.isNotEmpty)
-                              Positioned(
-                                bottom: 8,
-                                right: 8,
-                                child: _buildBadge(
-                                  widget.movieModel.language
-                                      .replaceAll('Thuyết Minh', 'TM')
-                                      .replaceAll('Thuyết minh', 'TM')
-                                      .replaceAll('Lồng Tiếng', 'LT')
-                                      .replaceAll('Lồng tiếng', 'LT'),
-                                  Colors.blue.shade800,
-                                ),
-                              ),
-                          ],
-                        ),
+                          );
+                        },
                       ),
-                    ),
+                      if (widget.movieModel.quality.isNotEmpty)
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: _buildBadge(
+                            widget.movieModel.quality.toUpperCase(),
+                            Colors.redAccent,
+                          ),
+                        ),
+                      if (widget.movieModel.time.isNotEmpty)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: _buildBadge(
+                            widget.movieModel.time,
+                            Colors.black87,
+                          ),
+                        ),
+                      if (widget.movieModel.year.isNotEmpty)
+                        Positioned(
+                          bottom: 8,
+                          left: 8,
+                          child: _buildBadge(
+                            widget.movieModel.year,
+                            Colors.black87,
+                          ),
+                        ),
+                      if (widget.movieModel.language.isNotEmpty)
+                        Positioned(
+                          bottom: 8,
+                          right: 8,
+                          child: _buildBadge(
+                            widget.movieModel.language
+                                .replaceAll('Thuyết Minh', 'TM')
+                                .replaceAll('Thuyết minh', 'TM')
+                                .replaceAll('Lồng Tiếng', 'LT')
+                                .replaceAll('Lồng tiếng', 'LT'),
+                            Colors.blue.shade800,
+                          ),
+                        ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.movieModel.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: focused ? Colors.amber : Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
