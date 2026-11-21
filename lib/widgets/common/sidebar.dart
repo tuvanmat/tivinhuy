@@ -114,15 +114,27 @@ late final Map<String, FocusNode> _focusNodes = {
             width: mqWidth(context, widget.isExpanded ? 16 : 5.5),
             height: mqHeigth(context, 100),
             color: Colors.black,
-            child: Center(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: EdgeInsets.symmetric(
-                    horizontal: widget.isExpanded ? 10 : 2),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                  horizontal: widget.isExpanded ? 10 : 2, vertical: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (widget.isExpanded) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4, bottom: 4),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Image.asset(
+                          'assets/images/logo_banner.png',
+                          height: 56,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                    const VSpacing(2),
+                  ],
+                  if (!widget.isExpanded) const Spacer(),
                     _buildSidebarItem(
                       context,
                       path: "assets/icons/home-icon.svg",
@@ -200,7 +212,7 @@ late final Map<String, FocusNode> _focusNodes = {
                             .buttonFocusedLabel = "info_page_focus";
                       },
                     ),
-                                      const VSpacing(3),
+                                      const Spacer(),
                     if (widget.isExpanded)
                       Padding(
                         padding: const EdgeInsets.only(left: 10, top: 2),
@@ -227,7 +239,6 @@ late final Map<String, FocusNode> _focusNodes = {
                         ),
                       ),],
                 ),
-              ),
             ),
           ),
         ),
@@ -372,7 +383,9 @@ late final Map<String, FocusNode> _focusNodes = {
                 ),
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
+                  alignment: widget.isExpanded
+                      ? Alignment.centerLeft
+                      : Alignment.center,
                   child: Row(
                     mainAxisAlignment: widget.isExpanded
                         ? MainAxisAlignment.start
