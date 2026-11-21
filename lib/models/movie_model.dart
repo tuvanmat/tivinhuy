@@ -48,6 +48,8 @@ class MovieModel {
   final String language;
   final String year;
   final String currentEpisode;
+  final String category; // Trường Thể loại
+  final String country; // Trường Quốc gia
   final List<EpisodeModel> episodes;
 
   MovieModel({
@@ -63,6 +65,8 @@ class MovieModel {
     this.language = '',
     this.year = '',
     this.currentEpisode = '',
+    this.category = '',
+    this.country = '',
     this.episodes = const [],
   });
 
@@ -79,6 +83,8 @@ class MovieModel {
     language: '',
     year: '',
     currentEpisode: '',
+    category: '',
+    country: '',
     episodes: const [],
   );
 
@@ -102,6 +108,8 @@ class MovieModel {
     } else if (json['resolution'] != null &&
         json['resolution'].toString().trim().isNotEmpty) {
       extractedQuality = json['resolution'].toString().trim();
+    } else {
+      extractedQuality = 'HD';
     }
 
     String extractedTime = '';
@@ -115,6 +123,47 @@ class MovieModel {
       extractedTime = json['episode_current'].toString().trim();
     }
 
+    String extractedLang = '';
+    if (json['language'] != null &&
+        json['language'].toString().trim().isNotEmpty) {
+      extractedLang = json['language'].toString().trim();
+    } else if (json['lang'] != null &&
+        json['lang'].toString().trim().isNotEmpty) {
+      extractedLang = json['lang'].toString().trim();
+    }
+
+    // Bóc tách thể loại ở dạng danh sách hoặc chuỗi nếu có trong JSON danh sách
+    String parsedCategory = '';
+    if (json['category'] != null) {
+      if (json['category'] is List) {
+        List<String> catNames = [];
+        for (var cat in json['category']) {
+          if (cat is Map && cat['name'] != null) {
+            catNames.add(cat['name'].toString());
+          }
+        }
+        parsedCategory = catNames.join(', ');
+      } else if (json['category'] is String) {
+        parsedCategory = json['category'];
+      }
+    }
+
+    // Bóc tách quốc gia ở dạng danh sách hoặc chuỗi nếu có trong JSON danh sách
+    String parsedCountry = '';
+    if (json['country'] != null) {
+      if (json['country'] is List) {
+        List<String> countryNames = [];
+        for (var c in json['country']) {
+          if (c is Map && c['name'] != null) {
+            countryNames.add(c['name'].toString());
+          }
+        }
+        parsedCountry = countryNames.join(', ');
+      } else if (json['country'] is String) {
+        parsedCountry = json['country'];
+      }
+    }
+
     return MovieModel(
       id: json['id'] is int ? json['id'] : 1,
       title: json['name'] ?? json['origin_name'] ?? 'Không có tiêu đề',
@@ -125,9 +174,11 @@ class MovieModel {
       url: '',
       quality: extractedQuality,
       time: extractedTime,
-      language: json['language'] ?? json['lang'] ?? '',
+      language: extractedLang,
       year: json['year']?.toString() ?? '',
       currentEpisode: json['current_episode'] ?? json['episode_current'] ?? '',
+      category: parsedCategory,
+      country: parsedCountry,
       episodes: const [],
     );
   }
@@ -191,6 +242,8 @@ class MovieModel {
     } else if (json['resolution'] != null &&
         json['resolution'].toString().trim().isNotEmpty) {
       detailQuality = json['resolution'].toString().trim();
+    } else {
+      detailQuality = 'HD';
     }
 
     String detailTime = '';
@@ -209,6 +262,30 @@ class MovieModel {
     String detailCurrentEp =
         json['current_episode'] ?? json['episode_current'] ?? '';
 
+    // Bóc tách Thể loại từ JSON chi tiết[cite: 18]
+    String parsedCategory = '';
+    if (json['category'] != null && json['category'] is List) {
+      List<String> catNames = [];
+      for (var cat in json['category']) {
+        if (cat is Map && cat['name'] != null) {
+          catNames.add(cat['name'].toString());
+        }
+      }
+      parsedCategory = catNames.join(', ');
+    }
+
+    // Bóc tách Quốc gia từ JSON chi tiết[cite: 18]
+    String parsedCountry = '';
+    if (json['country'] != null && json['country'] is List) {
+      List<String> countryNames = [];
+      for (var c in json['country']) {
+        if (c is Map && c['name'] != null) {
+          countryNames.add(c['name'].toString());
+        }
+      }
+      parsedCountry = countryNames.join(', ');
+    }
+
     return MovieModel(
       id: 1,
       title: json['name'] ?? json['origin_name'] ?? 'Không có tiêu đề',
@@ -222,6 +299,8 @@ class MovieModel {
       language: detailLang,
       year: detailYear,
       currentEpisode: detailCurrentEp,
+      category: parsedCategory, // Gán thể loại[cite: 18]
+      country: parsedCountry, // Gán quốc gia[cite: 18]
       episodes: parsedEpisodes,
     );
   }

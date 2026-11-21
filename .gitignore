@@ -22,7 +22,6 @@ migrate_working_dir/
 #.vscode/
 
 # Flutter/Dart/Pub related
-.fvm/flutter_sdk
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
@@ -42,3 +41,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Signing secrets (never commit)
+*.jks
+key.properties
+local.properties

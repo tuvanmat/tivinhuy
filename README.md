@@ -20,12 +20,12 @@ If you are using a Flutter version other than 3.22.2, you must update the button
 
 1. **Clone the repository**:
     ```bash
-    git clone https://github.com/tuvanmat/tivinhuy.git
+    git clone https://github.com/DarienRomero/TVFlutterApp.git
     ```
   
 2. **Navigate to the project directory**:
     ```bash
-    cd TVFlutterApp-master
+    cd flutter-movies-app-android-tv
     ```
 
 3. **Install dependencies**:

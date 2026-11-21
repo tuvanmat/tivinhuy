@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Thêm import này để cấu hình hướng màn hình
 import 'package:provider/provider.dart';
-import 'package:hive_flutter/hive_flutter.dart'; // Thêm import này
-import 'package:tv_flutter_app/pages/home_page.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:tv_flutter_app/pages/main_layout.dart';
 import 'package:tv_flutter_app/providers/button_focus_provider.dart';
-import 'package:tv_flutter_app/providers/focused_movie_provider.dart';
-import 'package:tv_flutter_app/providers/movies_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Khởi tạo Hive cục bộ trên thiết bị Tivi
-  await Hive.initFlutter();
+  // Ép buộc toàn bộ ứng dụng chỉ chạy ở chế độ xoay ngang (Landscape)
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
 
-  // Mở các box lưu trữ cho Yêu thích và Xem tiếp
+  await Hive.initFlutter();
   await Hive.openBox('favoritesBox');
   await Hive.openBox('historyBox');
 
@@ -27,13 +29,15 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ButtonFocusProvider()),
-        ChangeNotifierProvider(create: (_) => MoviesProvider()),
-        ChangeNotifierProvider(create: (_) => FocusedMovieProvider()),
       ],
-      child: const MaterialApp(
+      child: MaterialApp(
+        title: 'Tivi Như Ý',
         debugShowCheckedModeBanner: false,
-        title: 'Phim Như Ý',
-        home: HomePage(),
+        theme: ThemeData(
+          brightness: Brightness.dark,
+          scaffoldBackgroundColor: Colors.black,
+        ),
+        home: const MainLayout(),
       ),
     );
   }

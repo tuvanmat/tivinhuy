@@ -3,8 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:tv_flutter_app/providers/player_provider.dart';
 import 'package:video_player/video_player.dart';
 
-class CustomVideoPlayer extends StatefulWidget {
-  final String videoUrl; // Sử dụng videoUrl thay vì movieModel
+class CustomVideoPlayer extends StatelessWidget {
+  final String videoUrl;
 
   const CustomVideoPlayer({
     super.key,
@@ -12,29 +12,8 @@ class CustomVideoPlayer extends StatefulWidget {
   });
 
   @override
-  State<CustomVideoPlayer> createState() => _CustomVideoPlayerState();
-}
-
-class _CustomVideoPlayerState extends State<CustomVideoPlayer> {
-  @override
-  void initState() {
-    super.initState();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-
-      if (widget.videoUrl.isNotEmpty) {
-        Provider.of<PlayerProvider>(
-          context,
-          listen: false,
-        ).init(widget.videoUrl); // Init đúng url của tập
-      }
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (widget.videoUrl.isEmpty) {
+    if (videoUrl.isEmpty) {
       return const Center(
         child: Text(
           'Không tìm thấy nguồn phát video cho phim này',
@@ -48,7 +27,6 @@ class _CustomVideoPlayerState extends State<CustomVideoPlayer> {
 
     return Consumer<PlayerProvider>(
       builder: (context, playerProvider, _) {
-        // Controller đang được khởi tạo
         if (!playerProvider.videoPlayerInitialized) {
           return const SizedBox.expand(
             child: Center(
@@ -57,17 +35,14 @@ class _CustomVideoPlayerState extends State<CustomVideoPlayer> {
           );
         }
 
-        // Player đã bị dispose
         if (playerProvider.videoPlayerDisposed) {
           return const SizedBox.expand();
         }
 
-        // Lấy controller nullable
         final VideoPlayerController? controller =
             playerProvider.videoPlayerController;
 
-        // Chưa có controller
-        if (controller == null) {
+        if (controller == null || !controller.value.isInitialized) {
           return const SizedBox.expand(
             child: Center(
               child: CircularProgressIndicator(),
@@ -75,16 +50,6 @@ class _CustomVideoPlayerState extends State<CustomVideoPlayer> {
           );
         }
 
-        // Controller chưa initialize hoàn toàn
-        if (!controller.value.isInitialized) {
-          return const SizedBox.expand(
-            child: Center(
-              child: CircularProgressIndicator(),
-            ),
-          );
-        }
-
-        // Hiển thị video
         return SizedBox.expand(
           child: FittedBox(
             fit: BoxFit.cover,

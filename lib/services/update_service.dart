@@ -1,23 +1,31 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 
 class UpdateService {
-  static const String versionUrl = 'https://trongnga.io.vn/app/version.json';
-  static const MethodChannel _platform =
-      MethodChannel('com.phim.nhuy/installer');
+  static const String versionUrl =
+      'https://trongnga.io.vn/app/tivi/version.json';
 
-  // Hàm so sánh phiên bản công khai để InfoPage dùng
+  static const MethodChannel _platform =
+      MethodChannel('com.tivi.nhuy/installer');
+
+  // Tên file APK lưu riêng cho app Tivi Như Ý.
+  // Các phiên bản mới của cùng app sẽ thay thế file này.
+  // App khác có thể dùng tên khác, ví dụ phim1.apk, phim2.apk...
+  static const String localApkFileName = 'tivi.apk';
+
   static bool isNewerVersion(String current, String remote) {
-    List<String> currentParts = current.split('.');
-    List<String> remoteParts = remote.split('.');
+    final currentParts = current.split('.');
+    final remoteParts = remote.split('.');
 
     for (int i = 0; i < remoteParts.length; i++) {
-      int rNum = int.tryParse(remoteParts[i]) ?? 0;
-      int cNum =
-          i < currentParts.length ? (int.tryParse(currentParts[i]) ?? 0) : 0;
+      final rNum = int.tryParse(remoteParts[i]) ?? 0;
+      final cNum = i < currentParts.length
+          ? (int.tryParse(currentParts[i]) ?? 0)
+          : 0;
 
       if (rNum > cNum) return true;
       if (rNum < cNum) return false;
@@ -25,18 +33,23 @@ class UpdateService {
     return false;
   }
 
-  // Hàm thực hiện tải và cài đặt trực tiếp khi người dùng bấm nút trong trang Info
   static Future<void> downloadAndInstallDirect(
-      BuildContext context, String apkUrl) async {
-    ValueNotifier<double> progressNotifier = ValueNotifier<double>(0.0);
+    BuildContext context,
+    String apkUrl,
+  ) async {
+    final progressNotifier = ValueNotifier<double>(0.0);
+    bool dialogClosed = false;
 
     showGeneralDialog(
       context: context,
       useRootNavigator: true,
       barrierDismissible: false,
       barrierColor: Colors.black.withValues(alpha: 0.85),
-      pageBuilder: (BuildContext buildContext, Animation<double> animation,
-          Animation<double> secondaryAnimation) {
+      pageBuilder: (
+        BuildContext buildContext,
+        Animation<double> animation,
+        Animation<double> secondaryAnimation,
+      ) {
         return PopScope(
           canPop: false,
           child: Material(
@@ -69,8 +82,10 @@ class UpdateService {
                             LinearProgressIndicator(
                               value: value,
                               backgroundColor: Colors.white24,
-                              valueColor: const AlwaysStoppedAnimation<Color>(
-                                  Colors.amber),
+                              valueColor:
+                                  const AlwaysStoppedAnimation<Color>(
+                                Colors.amber,
+                              ),
                             ),
                             const SizedBox(height: 15),
                             Text(
@@ -106,49 +121,77 @@ class UpdateService {
     );
 
     try {
-      Directory tempDir = await getTemporaryDirectory();
-      String savePath = '${tempDir.path}/update.apk';
-
+      final tempDir = await getTemporaryDirectory();
+      final savePath = '${tempDir.path}/$localApkFileName';
       final file = File(savePath);
+
+      // Xóa bản APK cũ của chính app Tivi Như Ý.
       if (await file.exists()) {
         await file.delete();
       }
 
-      Dio dio = Dio();
+      final dio = Dio();
+
       await dio.download(
         apkUrl,
         savePath,
         onReceiveProgress: (received, total) {
-          if (total != -1) {
+          if (total > 0) {
             progressNotifier.value = received / total;
           }
         },
       );
 
-      if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
+      if (!await file.exists()) {
+        throw Exception('File APK không tồn tại sau khi tải.');
       }
 
+      if (await file.length() <= 0) {
+        throw Exception('File APK tải về bị rỗng.');
+      }
+
+      if (context.mounted && !dialogClosed) {
+        Navigator.of(context, rootNavigator: true).pop();
+        dialogClosed = true;
+      }
+
+      // Native:
+      // - có quyền -> cài ngay;
+      // - chưa có quyền -> mở Settings;
+      // - quay lại app -> tự cài file đã tải, không tải lại.
       await _installApkNative(savePath);
     } catch (e) {
-      debugPrint('Lỗi tải file APK: $e');
-      if (context.mounted) {
+      if (context.mounted && !dialogClosed) {
         Navigator.of(context, rootNavigator: true).pop();
+        dialogClosed = true;
+      }
+
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Tải bản cập nhật thất bại. Vui lòng thử lại!')),
+          SnackBar(
+            content: Text(
+              'Không thể tải/cài đặt bản cập nhật: $e',
+            ),
+          ),
         );
       }
+
+      debugPrint('Lỗi cập nhật APK: $e');
+    } finally {
+      progressNotifier.dispose();
     }
   }
 
   static Future<void> _installApkNative(String filePath) async {
     try {
-      @override
-      const MethodChannel platform = MethodChannel('com.phim.nhuy/installer');
-      await platform.invokeMethod('installApk', {'filePath': filePath});
-    } catch (e) {
-      debugPrint('Lỗi gọi cài đặt native: $e');
+      await _platform.invokeMethod(
+        'installApk',
+        {
+          'filePath': filePath,
+        },
+      );
+    } on PlatformException catch (e) {
+      debugPrint('Không thể cài đặt APK: ${e.message}');
     }
   }
 }

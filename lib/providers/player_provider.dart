@@ -15,14 +15,14 @@ class PlayerProvider extends ChangeNotifier {
   String totalTime = "00:00";
 
   Timer? timer;
-  Timer? timerTrackVideo;
   Timer? _seekDebounceTimer;
   Timer? _accelerationResetTimer;
+  Timer? _retryTimer;
 
   int _targetSeekMilliseconds = 0;
   int _consecutivePressCount = 0;
-
-  final oneSec = const Duration(seconds: 1);
+  int _retryCount = 0;
+  String _currentStreamUrl = '';
 
   bool controlsVisible = true;
   bool isPlaying = false;
@@ -31,8 +31,11 @@ class PlayerProvider extends ChangeNotifier {
   bool get changingVideo => _changingVideo;
 
   int _initRequestId = 0;
+  double _pendingInitialSeek = 0.0;
+  bool _hasSeekedInitial = false;
 
   VoidCallback? onHideControls;
+  VoidCallback? onError;
 
   @override
   void notifyListeners() {
@@ -50,7 +53,10 @@ class PlayerProvider extends ChangeNotifier {
       return;
     }
 
+    _currentStreamUrl = url.trim();
     final int requestId = ++_initRequestId;
+    _pendingInitialSeek = initialPositionSeconds;
+    _hasSeekedInitial = false;
 
     videoPlayerInitialized = false;
     isPlaying = false;
@@ -63,6 +69,7 @@ class PlayerProvider extends ChangeNotifier {
     if (oldController != null) {
       try {
         await oldController.pause();
+        oldController.removeListener(_videoListener);
       } catch (_) {}
     }
 
@@ -82,21 +89,34 @@ class PlayerProvider extends ChangeNotifier {
 
     videoPlayerController = null;
 
-    String targetUrl = url.trim();
+    String targetUrl = _currentStreamUrl;
+
+    if (targetUrl.startsWith('udp://') || targetUrl.startsWith('rtp://')) {
+      debugPrint(
+          'Lỗi: Giao thức UDP/RTP chưa được hỗ trợ trực tiếp: $targetUrl');
+      videoPlayerInitialized = false;
+      isPlaying = false;
+      notifyListeners();
+      onError?.call();
+      return;
+    }
+
     if (!targetUrl.startsWith('http')) {
       targetUrl = 'https:$targetUrl';
     }
 
     debugPrint(
-        'Đang tiến hành phát video từ URL: $targetUrl (Mốc tua: $initialPositionSeconds giây)');
+        'Đang tiến hành phát video từ URL: $targetUrl (Thử nghiệm lần: ${_retryCount + 1})');
 
+    // Cấu hình Headers tương thích tối đa cho điện thoại Android (giả lập trình duyệt Chrome Mobile)
     final controller = VideoPlayerController.networkUrl(
       Uri.parse(targetUrl),
       httpHeaders: {
         'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
         'Accept': '*/*',
         'Connection': 'keep-alive',
+        'Icy-Metadata': '1',
       },
     );
 
@@ -114,6 +134,8 @@ class PlayerProvider extends ChangeNotifier {
         return;
       }
 
+      _retryCount = 0;
+
       await controller.setVolume(1.0);
       videoPlayerInitialized = true;
 
@@ -125,7 +147,8 @@ class PlayerProvider extends ChangeNotifier {
         controller.value.position.inMilliseconds.round(),
       );
 
-      // Bắt đầu chạy video trước để load buffer stream m3u8
+      controller.addListener(_videoListener);
+
       await controller.play();
 
       if (requestId != _initRequestId ||
@@ -137,22 +160,28 @@ class PlayerProvider extends ChangeNotifier {
       isPlaying = true;
       notifyListeners();
 
-      // Sử dụng cơ chế lắng nghe hoặc lặp kiểm tra nhanh để thực hiện seekTo
-      // ngay khi duration và buffer của luồng m3u8 sẵn sàng thực sự.
-      if (initialPositionSeconds > 0) {
-        _performAccurateSeek(controller, initialPositionSeconds, requestId);
+      if (_pendingInitialSeek > 0) {
+        Future.delayed(const Duration(milliseconds: 400), () async {
+          if (videoPlayerDisposed ||
+              requestId != _initRequestId ||
+              videoPlayerController != controller) {
+            return;
+          }
+          try {
+            await controller
+                .seekTo(Duration(seconds: _pendingInitialSeek.toInt()));
+          } catch (e) {
+            debugPrint('Lỗi khi gọi delayed seekTo: $e');
+          }
+        });
+
+        _performAccurateSeek(controller, _pendingInitialSeek, requestId);
       }
 
       _startControlsTimer();
-
-      timerTrackVideo = Timer.periodic(
-        oneSec,
-        (_) {
-          checkTimer();
-        },
-      );
     } catch (e) {
-      debugPrint('Lỗi khởi tạo video player với URL $targetUrl: $e');
+      debugPrint(
+          'Lỗi khởi tạo video player trên điện thoại với URL $targetUrl: $e');
       if (requestId != _initRequestId) {
         return;
       }
@@ -168,14 +197,65 @@ class PlayerProvider extends ChangeNotifier {
       if (videoPlayerController == controller) {
         videoPlayerController = null;
       }
+
+      if (_retryCount < 2 && _currentStreamUrl.isNotEmpty) {
+        _retryCount++;
+        debugPrint(
+            'Đang tự động kết nối lại kênh trên điện thoại (Lần thử $_retryCount)...');
+        _retryTimer?.cancel();
+        _retryTimer = Timer(const Duration(seconds: 1), () {
+          if (!videoPlayerDisposed) {
+            init(_currentStreamUrl,
+                initialPositionSeconds: initialPositionSeconds);
+          }
+        });
+      } else {
+        onError?.call();
+      }
     }
   }
 
-  // Hàm phụ trợ hỗ trợ ép tua chính xác cho luồng mạng m3u8
+  void _videoListener() {
+    if (videoPlayerDisposed ||
+        !videoPlayerInitialized ||
+        videoPlayerController == null) {
+      return;
+    }
+
+    try {
+      final controller = videoPlayerController!;
+
+      if (controller.value.hasError) {
+        debugPrint(
+            'Phát hiện lỗi luồng trên điện thoại: ${controller.value.errorDescription}');
+        onError?.call();
+      }
+
+      if (!_hasSeekedInitial &&
+          _pendingInitialSeek > 0 &&
+          controller.value.isInitialized) {
+        final currentPosMs = controller.value.position.inMilliseconds;
+        if (currentPosMs > 300 &&
+            currentPosMs < (_pendingInitialSeek * 1000 - 1000)) {
+          _hasSeekedInitial = true;
+          controller.seekTo(Duration(seconds: _pendingInitialSeek.toInt()));
+        }
+      }
+
+      final currentPos = controller.value.position.inMilliseconds;
+      final formattedTime = parseTotalTime(currentPos);
+
+      if (nowTime != formattedTime && _targetSeekMilliseconds == 0) {
+        nowTime = formattedTime;
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
   void _performAccurateSeek(
       VideoPlayerController controller, double targetSeconds, int requestId) {
     int attempts = 0;
-    Timer.periodic(const Duration(milliseconds: 200), (timer) async {
+    Timer.periodic(const Duration(milliseconds: 300), (timer) async {
       if (videoPlayerDisposed ||
           requestId != _initRequestId ||
           videoPlayerController != controller) {
@@ -184,36 +264,16 @@ class PlayerProvider extends ChangeNotifier {
       }
 
       attempts++;
-      final duration = controller.value.duration.inMilliseconds;
+      try {
+        await controller.seekTo(Duration(seconds: targetSeconds.toInt()));
+      } catch (e) {
+        debugPrint('Lỗi khi gọi seekTo: $e');
+      }
 
-      // Khi video đã load được duration hoặc thử quá 15 lần (3 giây), tiến hành thực hiện seekTo
-      if (duration > 0 || attempts > 15) {
+      if (attempts >= 4) {
         timer.cancel();
-        try {
-          await controller.seekTo(Duration(seconds: targetSeconds.toInt()));
-          debugPrint('--> ĐÃ TUA THÀNH CÔNG ĐẾN GIÂY: $targetSeconds');
-        } catch (e) {
-          debugPrint('Lỗi khi gọi seekTo: $e');
-        }
       }
     });
-  }
-
-  void checkTimer() {
-    if (videoPlayerDisposed ||
-        !videoPlayerInitialized ||
-        videoPlayerController == null ||
-        _targetSeekMilliseconds > 0) {
-      return;
-    }
-
-    try {
-      final controller = videoPlayerController!;
-      nowTime = parseTotalTime(
-        controller.value.position.inMilliseconds,
-      );
-      notifyListeners();
-    } catch (_) {}
   }
 
   Future<void> onPlay() async {
@@ -237,7 +297,6 @@ class PlayerProvider extends ChangeNotifier {
         isPlaying = true;
       }
 
-      checkTimer();
       notifyListeners();
     } catch (_) {}
   }
@@ -339,15 +398,17 @@ class PlayerProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<bool> changeVideo(String url) async {
+  Future<bool> changeVideo(String url,
+      {double initialPositionSeconds = 0.0}) async {
     if (_changingVideo || videoPlayerDisposed || url.trim().isEmpty) {
       return false;
     }
 
     _changingVideo = true;
+    _retryCount = 0;
 
     try {
-      await init(url);
+      await init(url, initialPositionSeconds: initialPositionSeconds);
       return true;
     } finally {
       _changingVideo = false;
@@ -388,14 +449,14 @@ class PlayerProvider extends ChangeNotifier {
     timer?.cancel();
     timer = null;
 
-    timerTrackVideo?.cancel();
-    timerTrackVideo = null;
-
     _seekDebounceTimer?.cancel();
     _seekDebounceTimer = null;
 
     _accelerationResetTimer?.cancel();
     _accelerationResetTimer = null;
+
+    _retryTimer?.cancel();
+    _retryTimer = null;
 
     _targetSeekMilliseconds = 0;
     _consecutivePressCount = 0;
@@ -406,13 +467,16 @@ class PlayerProvider extends ChangeNotifier {
     _initRequestId++;
     videoPlayerDisposed = true;
     _cancelTimers();
+
     final controller = videoPlayerController;
     videoPlayerController = null;
     videoPlayerInitialized = false;
     isPlaying = false;
     controlsVisible = false;
+
     if (controller != null) {
       try {
+        controller.removeListener(_videoListener);
         await controller.pause();
       } catch (_) {}
       try {
@@ -427,9 +491,11 @@ class PlayerProvider extends ChangeNotifier {
     videoPlayerDisposed = true;
     _initRequestId++;
     _cancelTimers();
+
     final controller = videoPlayerController;
     videoPlayerController = null;
     try {
+      controller?.removeListener(_videoListener);
       controller?.dispose();
     } catch (_) {}
     super.dispose();

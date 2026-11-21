@@ -6,7 +6,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:tv_flutter_app/models/movie_model.dart';
 import 'package:tv_flutter_app/providers/player_provider.dart';
 import 'package:tv_flutter_app/widgets/common/v_spacing.dart';
-import 'package:video_player/video_player.dart';
 
 class PlayerBottomControls extends StatefulWidget {
   final bool isPlaying;
@@ -44,6 +43,8 @@ class PlayerBottomControls extends StatefulWidget {
 }
 
 class _PlayerBottomControlsState extends State<PlayerBottomControls> {
+  final FocusNode _exitFocusNode = FocusNode(debugLabel: 'ExitButton');
+  final FocusNode _sliderFocusNode = FocusNode(debugLabel: 'SliderButton');
   final FocusNode _playFocusNode = FocusNode(debugLabel: 'PlayButton');
   final FocusNode _backFocusNode = FocusNode(debugLabel: 'BackButton');
   final FocusNode _forwardFocusNode = FocusNode(debugLabel: 'ForwardButton');
@@ -76,6 +77,8 @@ class _PlayerBottomControlsState extends State<PlayerBottomControls> {
 
   @override
   void dispose() {
+    _exitFocusNode.dispose();
+    _sliderFocusNode.dispose();
     _playFocusNode.dispose();
     _backFocusNode.dispose();
     _forwardFocusNode.dispose();
@@ -141,8 +144,8 @@ class _PlayerBottomControlsState extends State<PlayerBottomControls> {
 
     return Consumer<PlayerProvider>(
       builder: (context, provider, _) {
-        if (!provider.videoPlayerInitialized ||
-            provider.videoPlayerController == null) {
+        final controller = provider.videoPlayerController;
+        if (!provider.videoPlayerInitialized || controller == null) {
           return const SizedBox.shrink();
         }
 
@@ -150,38 +153,105 @@ class _PlayerBottomControlsState extends State<PlayerBottomControls> {
         String displayQuality =
             widget.quality.isNotEmpty ? widget.quality.toUpperCase() : "HD";
 
+        final double currentPosMs =
+            controller.value.position.inMilliseconds.toDouble();
+        final double totalDurationMs =
+            controller.value.duration.inMilliseconds.toDouble();
+        final double sliderMax = totalDurationMs > 0 ? totalDurationMs : 1.0;
+        final double sliderVal = currentPosMs.clamp(0.0, sliderMax);
+
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 48.0, vertical: 32.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // 1. TIÊU ĐỀ PHIM & CHẤT LƯỢNG
+              // 1. NÚT BACK, TIÊU ĐỀ PHIM & CHẤT LƯỢNG
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Column(
+                  Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        widget.movieTitle,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
+                      // NÚT THOÁT / QUAY LẠI MÀN HÌNH TRƯỚC
+                      Focus(
+                        focusNode: _exitFocusNode,
+                        onKeyEvent: (node, event) {
+                          if (event is KeyDownEvent ||
+                              event is KeyRepeatEvent) {
+                            if (event.logicalKey == LogicalKeyboardKey.select ||
+                                event.logicalKey == LogicalKeyboardKey.enter ||
+                                event.logicalKey == LogicalKeyboardKey.space ||
+                                event.logicalKey ==
+                                    LogicalKeyboardKey.gameButtonA) {
+                              Navigator.of(context).pop();
+                              return KeyEventResult.handled;
+                            }
+                            // Nếu đang ở nút Back mà bấm Xuống -> nhảy xuống Thanh tiến trình
+                            if (event.logicalKey ==
+                                LogicalKeyboardKey.arrowDown) {
+                              _sliderFocusNode.requestFocus();
+                              return KeyEventResult.handled;
+                            }
+                          }
+                          return KeyEventResult.ignored;
+                        },
+                        child: AnimatedBuilder(
+                          animation: _exitFocusNode,
+                          builder: (context, child) {
+                            final isFocused = _exitFocusNode.hasFocus;
+                            return InkWell(
+                              onTap: () => Navigator.of(context).pop(),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color:
+                                      isFocused ? Colors.amber : Colors.white12,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: isFocused
+                                        ? Colors.white
+                                        : Colors.transparent,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Icon(
+                                  Icons.arrow_back_rounded,
+                                  color:
+                                      isFocused ? Colors.black : Colors.white,
+                                  size: 24,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      if (widget.episodeTitle.isNotEmpty)
-                        Text(
-                          widget.episodeTitle,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
+                      const SizedBox(width: 16),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.movieTitle,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 26,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: 4),
+                          if (widget.episodeTitle.isNotEmpty)
+                            Text(
+                              widget.episodeTitle,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                   Container(
@@ -235,13 +305,89 @@ class _PlayerBottomControlsState extends State<PlayerBottomControls> {
                       Expanded(
                         child: Container(
                           margin: const EdgeInsets.symmetric(horizontal: 16),
-                          child: VideoProgressIndicator(
-                            provider.videoPlayerController!,
-                            allowScrubbing: true,
-                            colors: const VideoProgressColors(
-                              playedColor: Colors.redAccent,
-                              bufferedColor: Colors.white24,
-                              backgroundColor: Colors.white12,
+                          child: Focus(
+                            focusNode: _sliderFocusNode,
+                            onKeyEvent: (node, event) {
+                              if (event is KeyDownEvent ||
+                                  event is KeyRepeatEvent) {
+                                final currentPos = controller.value.position;
+
+                                // Bấm Trái / Phải để tua +/- 10 giây
+                                if (event.logicalKey ==
+                                    LogicalKeyboardKey.arrowLeft) {
+                                  final newPos =
+                                      currentPos - const Duration(seconds: 10);
+                                  controller.seekTo(newPos < Duration.zero
+                                      ? Duration.zero
+                                      : newPos);
+                                  provider.activeControls();
+                                  return KeyEventResult.handled;
+                                } else if (event.logicalKey ==
+                                    LogicalKeyboardKey.arrowRight) {
+                                  final newPos =
+                                      currentPos + const Duration(seconds: 10);
+                                  controller.seekTo(
+                                      newPos > controller.value.duration
+                                          ? controller.value.duration
+                                          : newPos);
+                                  provider.activeControls();
+                                  return KeyEventResult.handled;
+                                }
+                                // Bấm Lên -> Nhảy ngược lên nút Back ở góc trên
+                                else if (event.logicalKey ==
+                                    LogicalKeyboardKey.arrowUp) {
+                                  _exitFocusNode.requestFocus();
+                                  return KeyEventResult.handled;
+                                }
+                                // Bấm Xuống -> Nhảy xuống nút Play/Pause ở cụm dưới
+                                else if (event.logicalKey ==
+                                    LogicalKeyboardKey.arrowDown) {
+                                  _playFocusNode.requestFocus();
+                                  return KeyEventResult.handled;
+                                }
+                              }
+                              return KeyEventResult.ignored;
+                            },
+                            child: AnimatedBuilder(
+                              animation: _sliderFocusNode,
+                              builder: (context, child) {
+                                final isFocused = _sliderFocusNode.hasFocus;
+                                return Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: isFocused
+                                          ? Colors.amber
+                                          : Colors.transparent,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: SliderTheme(
+                                    data: SliderTheme.of(context).copyWith(
+                                      activeTrackColor: Colors.redAccent,
+                                      inactiveTrackColor: Colors.white24,
+                                      thumbColor: Colors.amber,
+                                      thumbShape: const RoundSliderThumbShape(
+                                        enabledThumbRadius: 7.0,
+                                      ),
+                                      overlayShape:
+                                          const RoundSliderOverlayShape(
+                                        overlayRadius: 14.0,
+                                      ),
+                                    ),
+                                    child: Slider(
+                                      value: sliderVal,
+                                      min: 0.0,
+                                      max: sliderMax,
+                                      onChanged: (val) {
+                                        provider.activeControls();
+                                        controller.seekTo(Duration(
+                                            milliseconds: val.toInt()));
+                                      },
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           ),
                         ),
@@ -265,77 +411,90 @@ class _PlayerBottomControlsState extends State<PlayerBottomControls> {
                       borderRadius: BorderRadius.circular(40),
                       border: Border.all(color: Colors.white12, width: 1),
                     ),
-                    child: FocusScope(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          // NÚT TẬP TRƯỚC
-                          if (isSeries) ...[
+                    child: Focus(
+                      onKeyEvent: (node, event) {
+                        if (event is KeyDownEvent || event is KeyRepeatEvent) {
+                          // Khi đang ở cụm nút điều khiển dưới mà bấm Lên -> Nhảy lên thanh Slider
+                          if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+                            _sliderFocusNode.requestFocus();
+                            return KeyEventResult.handled;
+                          }
+                        }
+                        return KeyEventResult.ignored;
+                      },
+                      child: FocusScope(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // NÚT TẬP TRƯỚC
+                            if (isSeries) ...[
+                              _buildButton(
+                                focusNode: _prevEpFocusNode,
+                                assetPath: "assets/icons/arrow-back-icon.svg",
+                                onPressed: () async {
+                                  if (playerProvider.changingVideo) return;
+                                  await widget.onPreviousEpisode?.call();
+                                },
+                              ),
+                              const SizedBox(width: 12),
+                            ],
+
+                            // NÚT TUA LẠI
                             _buildButton(
-                              focusNode: _prevEpFocusNode,
-                              assetPath: "assets/icons/arrow-back-icon.svg",
-                              onPressed: () async {
-                                if (playerProvider.changingVideo) return;
-                                await widget.onPreviousEpisode?.call();
-                              },
+                              focusNode: _backFocusNode,
+                              assetPath: "assets/icons/double-left.svg",
+                              onPressed: widget.onBack,
                             ),
+
                             const SizedBox(width: 12),
-                          ],
 
-                          // NÚT TUA LẠI
-                          _buildButton(
-                            focusNode: _backFocusNode,
-                            assetPath: "assets/icons/double-left.svg",
-                            onPressed: widget.onBack,
-                          ),
-
-                          const SizedBox(width: 12),
-
-                          // NÚT PLAY / PAUSE
-                          _buildButton(
-                            focusNode: _playFocusNode,
-                            assetPath: widget.isPlaying
-                                ? "assets/icons/pause-icon.svg"
-                                : "assets/icons/play-icon.svg",
-                            size: 32,
-                            onPressed: widget.onPlay,
-                          ),
-
-                          const SizedBox(width: 12),
-
-                          // NÚT TUA TỚI
-                          _buildButton(
-                            focusNode: _forwardFocusNode,
-                            assetPath: "assets/icons/double-right.svg",
-                            onPressed: widget.onForward,
-                          ),
-
-                          // NÚT TẬP SAU
-                          if (isSeries) ...[
-                            const SizedBox(width: 12),
+                            // NÚT PLAY / PAUSE
                             _buildButton(
-                              focusNode: _nextEpFocusNode,
-                              assetPath: "assets/icons/arrow-forward-icon.svg",
-                              onPressed: () async {
-                                if (playerProvider.changingVideo) return;
-                                await widget.onNextEpisode?.call();
-                              },
+                              focusNode: _playFocusNode,
+                              assetPath: widget.isPlaying
+                                  ? "assets/icons/pause-icon.svg"
+                                  : "assets/icons/play-icon.svg",
+                              size: 32,
+                              onPressed: widget.onPlay,
                             ),
-                          ],
 
-                          // NÚT DANH SÁCH TẬP
-                          if (isSeries) ...[
                             const SizedBox(width: 12),
+
+                            // NÚT TUA TỚI
                             _buildButton(
-                              focusNode: _menuFocusNode,
-                              assetPath: "assets/icons/menu-icon.svg",
-                              onPressed: () {
-                                widget.onToggleEpisodeList?.call();
-                              },
+                              focusNode: _forwardFocusNode,
+                              assetPath: "assets/icons/double-right.svg",
+                              onPressed: widget.onForward,
                             ),
+
+                            // NÚT TẬP SAU
+                            if (isSeries) ...[
+                              const SizedBox(width: 12),
+                              _buildButton(
+                                focusNode: _nextEpFocusNode,
+                                assetPath:
+                                    "assets/icons/arrow-forward-icon.svg",
+                                onPressed: () async {
+                                  if (playerProvider.changingVideo) return;
+                                  await widget.onNextEpisode?.call();
+                                },
+                              ),
+                            ],
+
+                            // NÚT DANH SÁCH TẬP
+                            if (isSeries) ...[
+                              const SizedBox(width: 12),
+                              _buildButton(
+                                focusNode: _menuFocusNode,
+                                assetPath: "assets/icons/menu-icon.svg",
+                                onPressed: () {
+                                  widget.onToggleEpisodeList?.call();
+                                },
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   ),

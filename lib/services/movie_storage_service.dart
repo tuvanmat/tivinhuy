@@ -12,9 +12,8 @@ class MovieStorageService {
     if (isFavorite(movie.slug)) {
       await _favBox.delete(movie.slug);
     } else {
+      // Lưu lại thông tin đầy đủ bao gồm cả category và country
       await _favBox.put(movie.slug, {
-        'name': movie.title,
-        'origin_name': movie.title,
         'title': movie.title,
         'slug': movie.slug,
         'thumb_url': movie.verticalPhoto,
@@ -24,6 +23,8 @@ class MovieStorageService {
         'year': movie.year,
         'language': movie.language,
         'description': movie.description,
+        'category': movie.category,
+        'country': movie.country,
       });
     }
   }
@@ -53,8 +54,6 @@ class MovieStorageService {
     required double durationSeconds,
   }) async {
     await _histBox.put(movie.slug, {
-      'name': movie.title,
-      'origin_name': movie.title,
       'title': movie.title,
       'slug': movie.slug,
       'thumb_url': movie.verticalPhoto,
@@ -64,6 +63,8 @@ class MovieStorageService {
       'year': movie.year,
       'language': movie.language,
       'description': movie.description,
+      'category': movie.category,
+      'country': movie.country,
       'episodeIndex': episodeIndex,
       'positionSeconds': positionSeconds,
       'durationSeconds': durationSeconds,
@@ -81,6 +82,7 @@ class MovieStorageService {
 
   static List<Map<String, dynamic>> getContinueWatchingList() {
     final values = _histBox.values.toList();
+    // Sắp xếp theo thời gian xem gần nhất lên đầu
     values.sort((a, b) => (b['updatedAt'] ?? 0).compareTo(a['updatedAt'] ?? 0));
 
     List<Map<String, dynamic>> list = [];
@@ -92,7 +94,6 @@ class MovieStorageService {
     return list;
   }
 
-  // [Đã bổ sung] Hàm xóa tiến trình xem của một phim khỏi lịch sử
   static Future<void> removeWatchProgress(String slug) async {
     if (_histBox.containsKey(slug)) {
       await _histBox.delete(slug);
