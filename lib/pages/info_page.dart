@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:tv_flutter_app/providers/button_focus_provider.dart';
 import 'package:tv_flutter_app/services/app_update_manager.dart';
 import 'package:tv_flutter_app/services/license_service.dart';
-import 'package:tv_flutter_app/utils/labels.dart';
 
 const Color _accent = Color(0xFFD80000);
 const Color _nameRed = Color(0xFFD80000);
@@ -30,6 +29,7 @@ class _InfoPageState extends State<InfoPage> {
 
   final FocusNode _backFocus = FocusNode(debugLabel: 'InfoBack');
   final FocusNode _keyFocus = FocusNode(debugLabel: 'InfoKeyBtn');
+  final FocusNode _cardFocus = FocusNode(debugLabel: 'InfoHeaderCard');
   final FocusNode _checkFocus = FocusNode(debugLabel: 'InfoCheckBtn');
   final FocusNode _primaryFocus = FocusNode(debugLabel: 'InfoPrimaryBtn');
   final FocusNode _secondaryFocus = FocusNode(debugLabel: 'InfoSecondaryBtn');
@@ -54,7 +54,8 @@ class _InfoPageState extends State<InfoPage> {
     if (mounted) {
       _upd.checkForUpdate();
       _upd.fetchOtherAppsInfo();
-      if (_backFocus.canRequestFocus) _backFocus.requestFocus();
+      // Không tự bắt focus ở đây: trang nằm trong IndexedStack, chỉ vào
+      // focus khi sidebar đặt nhãn "info_page_focus" (xem Selector ở build).
     }
   }
 
@@ -62,6 +63,7 @@ class _InfoPageState extends State<InfoPage> {
   void dispose() {
     _backFocus.dispose();
     _keyFocus.dispose();
+    _cardFocus.dispose();
     _checkFocus.dispose();
     _primaryFocus.dispose();
     _secondaryFocus.dispose();
@@ -113,10 +115,11 @@ class _InfoPageState extends State<InfoPage> {
   }
 
   void _returnToHomeSidebar(BuildContext context) {
+    // App Truyền hình xếp các trang trong IndexedStack (không có route
+    // để pop): quay lại = trả focus về mục Thông tin của sidebar.
     final p = Provider.of<ButtonFocusProvider>(context, listen: false);
-    p.buttonFocusedLabel = sidebarHomeOption;
-    p.lastButtonFocusedLabel = sidebarHomeOption;
-    Navigator.pop(context);
+    p.buttonFocusedLabel = 'sidebar_info';
+    p.lastButtonFocusedLabel = 'sidebar_info';
   }
 
   Future<void> _showKeyDialog() async {
@@ -278,20 +281,26 @@ class _InfoPageState extends State<InfoPage> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) return;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          final p = Provider.of<ButtonFocusProvider>(context, listen: false);
-          p.buttonFocusedLabel = sidebarHomeOption;
-          p.lastButtonFocusedLabel = sidebarHomeOption;
-        });
-      },
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        body: Stack(
-          fit: StackFit.expand,
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Selector<ButtonFocusProvider, String>(
+        selector: (context, provider) => provider.buttonFocusedLabel,
+        builder: (context, buttonFocusedLabel, _) {
+          // App Truyền hình điều hướng bằng nhãn focus: sidebar đặt nhãn
+          // "info_page_focus" khi người dùng chọn sang trang này, trang
+          // phải tự bắt focus vào nút Kiểm tra lại (cơ chế của bản 1.0.4).
+          if (buttonFocusedLabel == 'info_page_focus') {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _checkFocus.canRequestFocus) {
+                _checkFocus.requestFocus();
+              }
+            });
+          }
+          return FocusScope(
+            // Giữ focus trong trang: app còn sidebar bên cạnh trang,
+            // không bọc scope thì phím điều hướng sẽ lọt focus sang sidebar.
+            child: Stack(
+              fit: StackFit.expand,
           children: [
             Image.asset('assets/images/welcome_bg.jpg', fit: BoxFit.cover),
             Container(
@@ -338,8 +347,10 @@ class _InfoPageState extends State<InfoPage> {
               left: 20,
               child: _buildBackButton(),
             ),
-          ],
-        ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -405,8 +416,8 @@ class _InfoPageState extends State<InfoPage> {
           const Color(0xFFF87171)),
     ];
     final c = chipColors[_licenseChipKind];
-    return Container(
-      margin: const EdgeInsets.only(top: 20),
+    final card = Container(
+      margin: EdgeInsets.only(top: _isPermanentActive ? 0 : 20),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: _cardBg.withValues(alpha: 0.92),
@@ -502,6 +513,31 @@ class _InfoPageState extends State<InfoPage> {
             ),
         ],
       ),
+    );
+    if (!_isPermanentActive) return card;
+    // Máy đã kích hoạt vĩnh viễn: trong thẻ không còn nút nào nhận focus,
+    // nên cho cả thẻ nhận focus (viền trắng khi được chọn) để bấm Lên
+    // từ khối Cập nhật về được đầu trang.
+    return AnimatedBuilder(
+      animation: _cardFocus,
+      builder: (context, child) {
+        final focused = _cardFocus.hasFocus;
+        return Focus(
+          focusNode: _cardFocus,
+          child: Container(
+            margin: const EdgeInsets.only(top: 20),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(19),
+              border: Border.all(
+                color: focused ? Colors.white : Colors.transparent,
+                width: 2.5,
+              ),
+            ),
+            child: child,
+          ),
+        );
+      },
+      child: card,
     );
   }
 
