@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tv_flutter_app/widgets/common/logo_loader.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -193,7 +194,7 @@ class _PlayerPageState extends State<PlayerPage> {
       return const Scaffold(
         backgroundColor: Colors.black,
         body: Center(
-          child: CircularProgressIndicator(color: Colors.redAccent),
+          child: LogoLoader(),
         ),
       );
     }

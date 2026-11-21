@@ -4,6 +4,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:tv_flutter_app/providers/button_focus_provider.dart';
 import 'package:tv_flutter_app/utils/utils.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:tv_flutter_app/services/license_service.dart';
 import 'package:tv_flutter_app/widgets/common/v_spacing.dart';
 
 class Sidebar extends StatefulWidget {
@@ -33,13 +35,40 @@ class _SidebarState extends State<Sidebar> {
     "sidebar_info",
   ];
 
-  late final Map<String, FocusNode> _focusNodes = {
+    String _version = '';
+  Color _dotColor = const Color(0xFF83838E);
+late final Map<String, FocusNode> _focusNodes = {
     "sidebar_home_tvt": FocusNode(debugLabel: 'sidebar_home_tvt'),
     "sidebar_sctv": FocusNode(debugLabel: 'sidebar_sctv'),
     "sidebar_htv": FocusNode(debugLabel: 'sidebar_htv'),
     "sidebar_local": FocusNode(debugLabel: 'sidebar_local'),
     "sidebar_info": FocusNode(debugLabel: 'sidebar_info'),
   };
+
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadFooterInfo();
+  }
+
+  Future<void> _loadFooterInfo() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) setState(() => _version = info.version);
+    } catch (_) {}
+    final data = await LicenseService.fetchLicenseStatus();
+    if (mounted && data != null) {
+      final st = data['status'];
+      setState(() {
+        _dotColor = st == 'active'
+            ? const Color(0xFF3ECF6A)
+            : (st == 'trial'
+                ? const Color(0xFFFBBF24)
+                : const Color(0xFFF87171));
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -171,7 +200,32 @@ class _SidebarState extends State<Sidebar> {
                             .buttonFocusedLabel = "info_page_focus";
                       },
                     ),
-                  ],
+                                      const VSpacing(3),
+                    if (widget.isExpanded)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 10, top: 2),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: _dotColor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 7),
+                            Text(
+                              _version.isEmpty ? 'V ...' : 'V $_version',
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),],
                 ),
               ),
             ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tv_flutter_app/widgets/common/logo_loader.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -174,8 +175,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                   child: _isLoading
                       ? const Center(
-                          child: CircularProgressIndicator(
-                              color: Colors.redAccent),
+                          child: LogoLoader(),
                         )
                       : _vtvChannels.isEmpty
                           ? const Center(
