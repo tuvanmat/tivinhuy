@@ -17,6 +17,7 @@ void main() async {
   await Hive.initFlutter();
   await Hive.openBox('favoritesBox');
   await Hive.openBox('historyBox');
+  await Hive.openBox('channelsBox');
 
   runApp(const MyApp());
 }

@@ -23,6 +23,9 @@ class PlayerProvider extends ChangeNotifier {
   int _consecutivePressCount = 0;
   int _retryCount = 0;
   String _currentStreamUrl = '';
+  List<String> _streamUrls = [];
+  int _activeUrlIndex = 0;
+  bool _recoveringFromError = false;
 
   bool controlsVisible = true;
   bool isPlaying = false;
@@ -44,16 +47,50 @@ class PlayerProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> init(String url, {double initialPositionSeconds = 0.0}) async {
+  /// Bắt đầu phát một kênh: [url] là nguồn chính, [fallbackUrls] là các
+  /// nguồn dự phòng — player tự chuyển lần lượt khi nguồn đang dùng lỗi.
+  Future<void> init(String url,
+      {double initialPositionSeconds = 0.0,
+      List<String> fallbackUrls = const []}) async {
     if (videoPlayerDisposed) {
       return;
     }
 
-    if (url.trim().isEmpty) {
+    final urls = <String>[];
+    void addUrl(String u) {
+      final t = u.trim();
+      if (t.isNotEmpty && !urls.contains(t)) {
+        urls.add(t);
+      }
+    }
+
+    addUrl(url);
+    for (final u in fallbackUrls) {
+      addUrl(u);
+    }
+
+    if (urls.isEmpty) {
       return;
     }
 
-    _currentStreamUrl = url.trim();
+    _streamUrls = urls;
+    _activeUrlIndex = 0;
+    _retryCount = 0;
+    _recoveringFromError = false;
+
+    await _startPlayback(initialPositionSeconds: initialPositionSeconds);
+  }
+
+  Future<void> _startPlayback({double initialPositionSeconds = 0.0}) async {
+    if (videoPlayerDisposed) {
+      return;
+    }
+
+    if (_streamUrls.isEmpty) {
+      return;
+    }
+
+    _currentStreamUrl = _streamUrls[_activeUrlIndex];
     final int requestId = ++_initRequestId;
     _pendingInitialSeek = initialPositionSeconds;
     _hasSeekedInitial = false;
@@ -135,6 +172,7 @@ class PlayerProvider extends ChangeNotifier {
       }
 
       _retryCount = 0;
+      _recoveringFromError = false;
 
       await controller.setVolume(1.0);
       videoPlayerInitialized = true;
@@ -198,15 +236,26 @@ class PlayerProvider extends ChangeNotifier {
         videoPlayerController = null;
       }
 
-      if (_retryCount < 2 && _currentStreamUrl.isNotEmpty) {
+      if (_retryCount < 1 && _currentStreamUrl.isNotEmpty) {
         _retryCount++;
         debugPrint(
             'Đang tự động kết nối lại kênh trên điện thoại (Lần thử $_retryCount)...');
         _retryTimer?.cancel();
         _retryTimer = Timer(const Duration(seconds: 1), () {
           if (!videoPlayerDisposed) {
-            init(_currentStreamUrl,
-                initialPositionSeconds: initialPositionSeconds);
+            _startPlayback(initialPositionSeconds: initialPositionSeconds);
+          }
+        });
+      } else if (_activeUrlIndex < _streamUrls.length - 1) {
+        // Nguồn hiện tại lỗi hẳn: tự chuyển sang nguồn dự phòng tiếp theo.
+        _activeUrlIndex++;
+        _retryCount = 0;
+        debugPrint(
+            'Chuyển sang nguồn dự phòng ${_activeUrlIndex + 1}/${_streamUrls.length}: ${_streamUrls[_activeUrlIndex]}');
+        _retryTimer?.cancel();
+        _retryTimer = Timer(const Duration(seconds: 1), () {
+          if (!videoPlayerDisposed) {
+            _startPlayback(initialPositionSeconds: initialPositionSeconds);
           }
         });
       } else {
@@ -228,7 +277,7 @@ class PlayerProvider extends ChangeNotifier {
       if (controller.value.hasError) {
         debugPrint(
             'Phát hiện lỗi luồng trên điện thoại: ${controller.value.errorDescription}');
-        onError?.call();
+        _handleMidStreamError();
       }
 
       if (!_hasSeekedInitial &&
@@ -250,6 +299,24 @@ class PlayerProvider extends ChangeNotifier {
         notifyListeners();
       }
     } catch (_) {}
+  }
+
+  /// Lỗi giữa chừng khi đang phát: còn nguồn dự phòng thì tự chuyển nguồn,
+  /// hết nguồn mới báo lỗi ra ngoài.
+  void _handleMidStreamError() {
+    if (_recoveringFromError || videoPlayerDisposed) {
+      return;
+    }
+    if (_activeUrlIndex < _streamUrls.length - 1) {
+      _recoveringFromError = true;
+      _activeUrlIndex++;
+      _retryCount = 0;
+      debugPrint(
+          'Lỗi giữa chừng — chuyển nguồn dự phòng ${_activeUrlIndex + 1}/${_streamUrls.length}: ${_streamUrls[_activeUrlIndex]}');
+      _startPlayback(initialPositionSeconds: 0.0);
+    } else {
+      onError?.call();
+    }
   }
 
   void _performAccurateSeek(
@@ -399,7 +466,8 @@ class PlayerProvider extends ChangeNotifier {
   }
 
   Future<bool> changeVideo(String url,
-      {double initialPositionSeconds = 0.0}) async {
+      {double initialPositionSeconds = 0.0,
+      List<String> fallbackUrls = const []}) async {
     if (_changingVideo || videoPlayerDisposed || url.trim().isEmpty) {
       return false;
     }
@@ -408,7 +476,9 @@ class PlayerProvider extends ChangeNotifier {
     _retryCount = 0;
 
     try {
-      await init(url, initialPositionSeconds: initialPositionSeconds);
+      await init(url,
+          initialPositionSeconds: initialPositionSeconds,
+          fallbackUrls: fallbackUrls);
       return true;
     } finally {
       _changingVideo = false;

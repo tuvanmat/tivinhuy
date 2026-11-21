@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import 'package:tv_flutter_app/models/movie_model.dart';
+import 'package:tv_flutter_app/utils/app_colors.dart';
 import 'package:tv_flutter_app/providers/button_focus_provider.dart';
 import 'package:tv_flutter_app/providers/player_provider.dart';
 import 'package:tv_flutter_app/services/license_service.dart';
@@ -17,9 +18,16 @@ class ChannelPlaybackItem {
   final String name;
   final String logo;
   final String url;
+  final List<String> urls;
 
   ChannelPlaybackItem(
-      {required this.name, required this.logo, required this.url});
+      {required this.name,
+      required this.logo,
+      required this.url,
+      this.urls = const []});
+
+  /// Toàn bộ nguồn phát của kênh (chính + dự phòng), không rỗng.
+  List<String> get allUrls => urls.isNotEmpty ? urls : [url];
 }
 
 class PlayerPage extends StatefulWidget {
@@ -178,7 +186,8 @@ class _PlayerPageState extends State<PlayerPage> {
       _hasStreamError = false;
     });
 
-    provider.changeVideo(_currentMovieModel.url);
+    provider.changeVideo(_currentMovieModel.url,
+        fallbackUrls: widget.channelList![_activeChannelIndex].allUrls);
   }
 
   @override
@@ -224,7 +233,14 @@ class _PlayerPageState extends State<PlayerPage> {
         };
 
         final targetUrl = _currentMovieModel.url;
-        provider.init(targetUrl, initialPositionSeconds: 0.0);
+        final items = widget.channelList;
+        final List<String> fallbacks = (items != null &&
+                _activeChannelIndex >= 0 &&
+                _activeChannelIndex < items.length)
+            ? items[_activeChannelIndex].allUrls
+            : const [];
+        provider.init(targetUrl,
+            initialPositionSeconds: 0.0, fallbackUrls: fallbacks);
 
         return provider;
       },
@@ -361,7 +377,7 @@ class _PlayerPageState extends State<PlayerPage> {
                                             padding: const EdgeInsets.all(6),
                                             decoration: BoxDecoration(
                                               color: isFocused
-                                                  ? Colors.amber
+                                                  ? AppColors.brandBright
                                                   : Colors.white
                                                       .withValues(alpha: 0.35),
                                               shape: BoxShape.circle,
