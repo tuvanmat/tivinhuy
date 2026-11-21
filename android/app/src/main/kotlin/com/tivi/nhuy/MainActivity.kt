@@ -57,6 +57,13 @@ class MainActivity : FlutterActivity() {
                     }
                 }
 
+                "getAndroidId" -> {
+                    val androidId = Settings.Secure.getString(
+                        contentResolver,
+                        Settings.Secure.ANDROID_ID
+                    )
+                    result.success(androidId)
+                }
                 else -> result.notImplemented()
             }
         }
