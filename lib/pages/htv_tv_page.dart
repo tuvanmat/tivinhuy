@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tv_flutter_app/widgets/common/logo_loader.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -7,6 +8,7 @@ import 'package:tv_flutter_app/models/movie_model.dart';
 import 'package:tv_flutter_app/pages/player_page.dart';
 import 'package:tv_flutter_app/providers/button_focus_provider.dart';
 import 'package:tv_flutter_app/services/channel_service.dart';
+import 'package:tv_flutter_app/utils/app_colors.dart';
 import 'package:tv_flutter_app/utils/navigation.dart';
 import 'package:tv_flutter_app/utils/utils.dart';
 import 'package:tv_flutter_app/widgets/home/home_background.dart';
@@ -107,6 +109,7 @@ class _HtvTvPageState extends State<HtvTvPage> {
               name: e.name,
               logo: e.logo,
               url: e.url,
+              urls: e.urls,
             ))
         .toList();
 
@@ -174,8 +177,7 @@ class _HtvTvPageState extends State<HtvTvPage> {
                   ),
                   child: _isLoading
                       ? const Center(
-                          child: CircularProgressIndicator(
-                              color: Colors.redAccent),
+                          child: LogoLoader(),
                         )
                       : _htvChannels.isEmpty
                           ? const Center(
@@ -301,14 +303,14 @@ class _HtvTvPageState extends State<HtvTvPage> {
                                           padding: const EdgeInsets.all(10),
                                           decoration: BoxDecoration(
                                             color: hasFocus
-                                                ? Colors.amber
-                                                : const Color(0xFF1E2430),
+                                                ? Colors.white24
+                                                : AppColors.cardBg,
                                             borderRadius:
                                                 BorderRadius.circular(10),
                                             border: Border.all(
                                               color: hasFocus
                                                   ? Colors.white
-                                                  : Colors.white24,
+                                                  : AppColors.cardBorder,
                                               width: hasFocus ? 2.5 : 1.0,
                                             ),
                                           ),
@@ -331,9 +333,7 @@ class _HtvTvPageState extends State<HtvTvPage> {
                                                           child:
                                                               CircularProgressIndicator(
                                                             strokeWidth: 2,
-                                                            color: hasFocus
-                                                                ? Colors.black
-                                                                : Colors.white,
+                                                            color: Colors.white,
                                                           ),
                                                         ),
                                                       ),
@@ -369,7 +369,7 @@ class _HtvTvPageState extends State<HtvTvPage> {
         name,
         textAlign: TextAlign.center,
         style: TextStyle(
-          color: hasFocus ? Colors.black : Colors.white,
+          color: Colors.white,
           fontWeight: FontWeight.bold,
           fontSize: 15,
         ),

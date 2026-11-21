@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'package:tv_flutter_app/utils/app_colors.dart';
+
 class UpdateService {
   static const String versionUrl =
       'https://trongnga.io.vn/app/tivi/version.json';
@@ -84,7 +86,7 @@ class UpdateService {
                               backgroundColor: Colors.white24,
                               valueColor:
                                   const AlwaysStoppedAnimation<Color>(
-                                Colors.amber,
+                                AppColors.brandBright,
                               ),
                             ),
                             const SizedBox(height: 15),

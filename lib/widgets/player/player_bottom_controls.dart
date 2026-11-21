@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:tv_flutter_app/models/movie_model.dart';
 import 'package:tv_flutter_app/providers/player_provider.dart';
+import 'package:tv_flutter_app/utils/app_colors.dart';
 import 'package:tv_flutter_app/widgets/common/v_spacing.dart';
 
 class PlayerBottomControls extends StatefulWidget {
@@ -118,7 +119,7 @@ class _PlayerBottomControlsState extends State<PlayerBottomControls> {
               duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: isFocused ? Colors.amber : Colors.transparent,
+                color: isFocused ? AppColors.brandBright : Colors.transparent,
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: isFocused ? Colors.white : Colors.transparent,
@@ -207,7 +208,7 @@ class _PlayerBottomControlsState extends State<PlayerBottomControls> {
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
                                   color:
-                                      isFocused ? Colors.amber : Colors.white12,
+                                      isFocused ? AppColors.brandBright : Colors.white12,
                                   shape: BoxShape.circle,
                                   border: Border.all(
                                     color: isFocused
@@ -357,7 +358,7 @@ class _PlayerBottomControlsState extends State<PlayerBottomControls> {
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(
                                       color: isFocused
-                                          ? Colors.amber
+                                          ? AppColors.brandBright
                                           : Colors.transparent,
                                       width: 2,
                                     ),
@@ -366,7 +367,7 @@ class _PlayerBottomControlsState extends State<PlayerBottomControls> {
                                     data: SliderTheme.of(context).copyWith(
                                       activeTrackColor: Colors.redAccent,
                                       inactiveTrackColor: Colors.white24,
-                                      thumbColor: Colors.amber,
+                                      thumbColor: AppColors.brandBright,
                                       thumbShape: const RoundSliderThumbShape(
                                         enabledThumbRadius: 7.0,
                                       ),
