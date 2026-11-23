@@ -1,5 +1,5 @@
 buildscript {
-    ext.kotlin_version = '1.9.0'
+    ext.kotlin_version = '2.2.20'
     repositories {
         google()
         mavenCentral()
@@ -16,18 +16,47 @@ allprojects {
 rootProject.buildDir = '../build'
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
+    
+    // Ép buộc toàn bộ các module dùng chung phiên bản Kotlin 2.0.0 khớp với Flutter SDK
+    configurations.all {
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == 'org.jetbrains.kotlin') {
+                details.useVersion '2.2.20'
+            }
+        }
+    }
+
+    buildscript {
+        repositories {
+            google()
+            mavenCentral()
+        }
+        dependencies {
+            classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:2.2.20"
+        }
+    }
+
     afterEvaluate { project ->
         if (project.hasProperty('android')) {
             project.android {
                 if (compileSdkVersion == null) {
-                    compileSdkVersion 34
+                    compileSdkVersion 35
                 }
+                
+                if (namespace == null) {
+                    namespace project.group
+                }
+
                 compileOptions {
                     sourceCompatibility JavaVersion.VERSION_17
                     targetCompatibility JavaVersion.VERSION_17
                 }
-                kotlinOptions {
-                    jvmTarget = '17'
+
+                // Chỉ cấu hình kotlinOptions nếu module có dùng plugin Kotlin
+                if (project.plugins.hasPlugin('kotlin-android') || project.plugins.hasPlugin('org.jetbrains.kotlin.android')) {
+                    kotlinOptions {
+                        jvmTarget = '17'
+                    }
                 }
             }
         }
