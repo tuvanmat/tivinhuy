@@ -638,13 +638,16 @@ class _InfoPageState extends State<InfoPage> {
                   icon: Icons.refresh_rounded,
                   onPressed: () => _upd.checkForUpdate(),
                 ),
-                const Spacer(),
-                Text(
+                const SizedBox(width: 12),
+                Expanded(
+                child: Text(
                   _upd.lastCheckAt != null
                       ? 'Kiểm tra lần cuối: ${_fmtTime(_upd.lastCheckAt)}'
                       : '',
                   style: const TextStyle(
                       color: Color(0xFF83838E), fontSize: 12.5),
+                  textAlign: TextAlign.right,
+                ),
                 ),
               ],
             ),
@@ -681,13 +684,16 @@ class _InfoPageState extends State<InfoPage> {
                   label: 'Kiểm tra lại',
                   onPressed: () => _upd.checkForUpdate(),
                 ),
-                const Spacer(),
-                Text(
+                const SizedBox(width: 12),
+                Expanded(
+                child: Text(
                   _upd.lastCheckAt != null
                       ? 'Tự kiểm tra lúc mở trang này • ${_fmtTime(_upd.lastCheckAt)}'
                       : '',
                   style: const TextStyle(
                       color: Color(0xFF83838E), fontSize: 12.5),
+                  textAlign: TextAlign.right,
+                ),
                 ),
               ],
             ),
@@ -744,10 +750,13 @@ class _InfoPageState extends State<InfoPage> {
                   label: 'Huỷ tải',
                   onPressed: () => _upd.cancelDownload(),
                 ),
-                const Spacer(),
-                const Text(
+                const SizedBox(width: 12),
+                Expanded(
+                child: const Text(
                   'Tải nền — cứ dùng app bình thường',
                   style: TextStyle(color: Color(0xFF83838E), fontSize: 12.5),
+                  textAlign: TextAlign.right,
+                ),
                 ),
               ],
             ),
@@ -782,10 +791,13 @@ class _InfoPageState extends State<InfoPage> {
                   label: 'Xoá bản đã tải',
                   onPressed: () => _upd.deleteDownloaded(),
                 ),
-                const Spacer(),
-                const Text(
+                const SizedBox(width: 12),
+                Expanded(
+                child: const Text(
                   'Để nguyên cũng được — không tốn thêm dung lượng lần sau',
                   style: TextStyle(color: Color(0xFF83838E), fontSize: 12.5),
+                  textAlign: TextAlign.right,
+                ),
                 ),
               ],
             ),
